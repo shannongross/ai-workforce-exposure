@@ -1,0 +1,19 @@
+# private planning / application material — never publish
+OUTLINE.md
+notes/
+
+# data is fetched by src/download.py, not committed
+data/raw/
+data/processed/
+
+# local environment
+.venv/
+.env
+.claude/
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+
+# built artifacts (the paper source is committed; the PDF is a release asset)
+paper/*.pdf
+figures/*.tmp.*
