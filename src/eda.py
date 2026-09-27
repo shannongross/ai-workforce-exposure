@@ -21,9 +21,11 @@ RAW = ROOT / "data" / "raw"
 FIGS = ROOT / "figures" / "eda"
 DOCS = ROOT / "docs"
 
-# palette: categorical slot 1 (blue) carries every single-series chart;
-# ink/grid tokens from the same reference palette
-BLUE, INK, MUTED, GRID, SURFACE = "#2a78d6", "#0b0b0b", "#898781", "#e1e0d9", "#fcfcfb"
+# palette: categorical slots 1-3 (blue = all occupations, orange = utility
+# core, aqua = extended utility workforce); ink/grid tokens from the same
+# reference palette. Three slots validate all-pairs for scatters.
+BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
+INK, MUTED, GRID, SURFACE = "#0b0b0b", "#898781", "#e1e0d9", "#fcfcfb"
 
 plt.rcParams.update({
     "figure.facecolor": SURFACE, "axes.facecolor": SURFACE,
@@ -184,11 +186,134 @@ def fig_reproduction() -> pd.DataFrame:
     return df
 
 
-def build_page(exp, aa, wage, repro, n_gated, n_tasks):
+def load_analysis() -> pd.DataFrame:
+    df = pd.read_csv(ROOT / "data/processed/analysis.csv")
+    df["group"] = "All other occupations"
+    df.loc[df["utility_workforce"] == True, "group"] = "Utility workforce (extended)"
+    df.loc[df["utility_core"] == True, "group"] = "Utility core"
+    return df
+
+
+def fig_utility_core(ana: pd.DataFrame):
+    """The 11 operational-core occupations: exposure, with employment and
+    wage as context. The story is the wall of zeros."""
+    core = (ana[ana["utility_core"] == True]
+            .sort_values(["observed_exposure", "emp_national"]))
+    fig, ax = plt.subplots(figsize=(9, 5))
+    labels = [f"{shorten(pd.Series([t]), 46)[0]}   "
+              f"({e / 1000:.0f}k workers)" for t, e in
+              zip(core["title"], core["emp_national"])]
+    ax.barh(labels, core["observed_exposure"], color=ORANGE, height=0.62)
+    ax.axvline(ana["observed_exposure"].mean(), color=MUTED, linewidth=1,
+               linestyle="--")
+    ax.annotate(f"economy-wide mean ({ana['observed_exposure'].mean():.3f})",
+                xy=(ana["observed_exposure"].mean(), 0.2), xytext=(4, 0),
+                textcoords="offset points", color="#52514e", fontsize=8.5)
+    for i, v in enumerate(core["observed_exposure"]):
+        if v == 0:
+            ax.text(0.0012, i, "0", va="center", color="#52514e", fontsize=8.5)
+    ax.set_xlabel("Observed exposure")
+    ax.set_title("Core utility occupations: observed AI exposure is near zero",
+                 loc="left", fontweight="bold")
+    ax.grid(axis="y", visible=False)
+    fig.tight_layout()
+    fig.savefig(FIGS / "utility_core.png", bbox_inches="tight")
+    plt.close(fig)
+
+
+def fig_utility_vs_economy(ana: pd.DataFrame):
+    """Cumulative distribution of exposure: utility groups against the rest.
+    An ECDF handles the huge mass at zero honestly."""
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for label, color in [("All other occupations", BLUE),
+                         ("Utility workforce (extended)", AQUA),
+                         ("Utility core", ORANGE)]:
+        vals = ana.loc[ana["group"] == label, "observed_exposure"].sort_values()
+        ax.step(vals, (vals.rank(method="first")) / len(vals), where="post",
+                color=color, linewidth=2, label=f"{label} (n={len(vals)})")
+    ax.set_xlabel("Observed exposure")
+    ax.set_ylabel("Cumulative share of occupations")
+    ax.set_title("Utility occupations are concentrated at zero exposure",
+                 loc="left", fontweight="bold")
+    ax.legend(frameon=False, loc="lower right")
+    fig.tight_layout()
+    fig.savefig(FIGS / "utility_vs_economy_ecdf.png", bbox_inches="tight")
+    plt.close(fig)
+
+
+def fig_utility_scatter(ana: pd.DataFrame):
+    """Wage vs. exposure with the utility workforce highlighted: utility
+    occupations pay mid-to-high wages yet sit on the exposure floor."""
+    df = ana.dropna(subset=["median_wage"])
+    fig, ax = plt.subplots(figsize=(8.5, 5.5))
+    order = [("All other occupations", BLUE, 0.25, 14),
+             ("Utility workforce (extended)", AQUA, 0.9, 34),
+             ("Utility core", ORANGE, 0.95, 46)]
+    for label, color, alpha, size in order:
+        d = df[df["group"] == label]
+        ax.scatter(d["median_wage"], d["observed_exposure"], s=size,
+                   color=color, alpha=alpha, edgecolors=SURFACE,
+                   linewidths=0.6, label=f"{label} (n={len(d)})")
+    for _, r in df[df["utility_core"] == True].nlargest(2, "observed_exposure").iterrows():
+        ax.annotate(r["title"], (r["median_wage"], r["observed_exposure"]),
+                    fontsize=7.5, color="#52514e",
+                    xytext=(6, 3), textcoords="offset points")
+    ax.annotate("Water/Wastewater Operators (128k)\nPower-Line Installers (131k)",
+                xy=(9.5e4, 0.0), xytext=(1.6e5, 0.09), color="#52514e",
+                fontsize=8, arrowprops={"arrowstyle": "->", "color": MUTED})
+    ax.set_xscale("log")
+    ax.set_xlabel("Median annual wage, May 2025 (log scale, USD)")
+    ax.set_ylabel("Observed exposure")
+    ax.set_title("Well-paid, essential — and on the exposure floor",
+                 loc="left", fontweight="bold")
+    ax.legend(frameon=False, loc="upper right")
+    fig.tight_layout()
+    fig.savefig(FIGS / "utility_wage_scatter.png", bbox_inches="tight")
+    plt.close(fig)
+
+
+def utility_page_section(ana: pd.DataFrame) -> str:
+    """Interactive utility-focus panels: highlighted scatter + core bars."""
+    df = ana.dropna(subset=["median_wage"])
+    sec = make_subplots(
+        rows=1, cols=2, horizontal_spacing=0.09,
+        subplot_titles=("Wage vs. exposure, utility workforce highlighted",
+                        "Core utility occupations"))
+    for label, color, size, alpha in [
+            ("All other occupations", BLUE, 6, 0.3),
+            ("Utility workforce (extended)", AQUA, 9, 0.95),
+            ("Utility core", ORANGE, 11, 0.95)]:
+        d = df[df["group"] == label]
+        sec.add_scatter(x=d["median_wage"], y=d["observed_exposure"],
+                        mode="markers", name=label, customdata=d["title"],
+                        marker={"color": color, "size": size, "opacity": alpha},
+                        hovertemplate="%{customdata}<br>wage: $%{x:,.0f}<br>"
+                                      "exposure: %{y:.3f}<extra></extra>",
+                        row=1, col=1)
+    core = (ana[ana["utility_core"] == True]
+            .sort_values("observed_exposure"))
+    sec.add_bar(x=core["observed_exposure"], y=core["title"], orientation="h",
+                marker_color=ORANGE, showlegend=False,
+                customdata=core["emp_national"],
+                hovertemplate="%{y}<br>exposure: %{x:.3f}<br>"
+                              "employment: %{customdata:,.0f}<extra></extra>",
+                row=1, col=2)
+    sec.update_xaxes(type="log", title_text="median annual wage (USD)",
+                     gridcolor=GRID, row=1, col=1)
+    sec.update_xaxes(title_text="observed exposure", gridcolor=GRID, row=1, col=2)
+    sec.update_yaxes(gridcolor=GRID)
+    sec.update_layout(
+        height=520, paper_bgcolor=SURFACE, plot_bgcolor=SURFACE,
+        legend={"orientation": "h", "y": -0.25},
+        font={"family": 'system-ui, -apple-system, "Segoe UI", sans-serif',
+              "color": INK},
+        margin={"t": 40, "l": 60, "r": 30})
+    return sec.to_html(full_html=False, include_plotlyjs=False)
+
+
+def build_page(exp, aa, wage, repro, n_gated, n_tasks, ana):
     """One self-contained interactive page for GitHub Pages. Embeds only
     occupation-level aggregates, never the raw task file."""
-    hover = "%{customdata}<br>exposure: %{y:.3f}<extra></extra>"
-
     page = make_subplots(
         rows=3, cols=2, vertical_spacing=0.11, horizontal_spacing=0.09,
         subplot_titles=(
@@ -249,6 +374,7 @@ def build_page(exp, aa, wage, repro, n_gated, n_tasks):
     page.update_yaxes(gridcolor=GRID, zerolinecolor=GRID)
 
     body = page.to_html(full_html=False, include_plotlyjs="cdn")
+    utility_section = utility_page_section(ana)
     html = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -273,6 +399,16 @@ AI exposure in critical-infrastructure occupations. Exposure scores come from th
 Index</a> ("observed exposure", Massenkoff &amp; McCrory 2026); wages and employment
 from <a href="https://www.bls.gov/oes/">BLS OEWS</a> (May 2025). Charts show
 occupation-level aggregates only. Hover any point for details.</p>
+<h2>The utility workforce focus</h2>
+<p>The study centers on the occupations that operate energy and water systems:
+an operational core of 11 occupations (plant and system operators, line
+installers, substation repairers) plus an extended workforce identified by
+employment concentration in utility industries. Core utility occupations
+average 0.009 observed exposure against 0.077 economy-wide — nine of the
+eleven, including all ~128,000 water and wastewater operators, register
+exactly zero.</p>
+{utility_section}
+<h2>The input data</h2>
 {body}
 <footer>
 Independent research by Shannon Gross — not affiliated with or endorsed by Anthropic.
@@ -297,7 +433,13 @@ def main() -> None:
     aa = fig_interaction_types()
     wage = fig_wage_scatter(exp, oews)
     repro = fig_reproduction()
-    build_page(exp, aa, wage, repro, n_gated, n_tasks)
+
+    ana = load_analysis()
+    fig_utility_core(ana)
+    fig_utility_vs_economy(ana)
+    fig_utility_scatter(ana)
+
+    build_page(exp, aa, wage, repro, n_gated, n_tasks, ana)
     print(f"wrote {len(list(FIGS.glob('*.png')))} figures to figures/eda/")
 
 
