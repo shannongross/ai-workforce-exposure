@@ -141,6 +141,7 @@ def main() -> None:
           f"{factor5:.1%} of specs")
 
     spec_curve(r)
+    spec_curve(r, absolute=True)
 
     # which lever moves the utility share most: range of group means
     print("\nparameter influence on utility used share (range of means):")
@@ -150,10 +151,14 @@ def main() -> None:
               + "  ".join(f"{k}={v:.3f}" for k, v in means.items()))
 
 
-def spec_curve(r: pd.DataFrame) -> None:
+def spec_curve(r: pd.DataFrame, absolute: bool = False) -> None:
     """Parallel-coordinates view: one line per specification, one axis per
     outcome metric. Every line starts low on the utility axis and high on
-    the economy axis - the gap holds across the whole ensemble."""
+    the economy axis - the gap holds across the whole ensemble.
+
+    absolute=True scales each axis from zero to its maximum possible value
+    (shares to 1.0), showing how small the whole phenomenon is in absolute
+    terms; the default zooms to the observed ranges."""
     BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
     INK, MUTED, SURFACE = "#0b0b0b", "#898781", "#fcfcfb"
 
@@ -164,14 +169,20 @@ def spec_curve(r: pd.DataFrame) -> None:
     d = r.copy()
     d["ratio"] = d["ratio"].clip(upper=d["ratio"].replace(
         float("inf"), pd.NA).dropna().max())
-    lo = {c: d[c].min() for c, _ in axes}
-    hi = {c: d[c].max() for c, _ in axes}
-    # the two share axes use ONE common scale, so the utility->economy jump
-    # is visible; per-axis normalization would hide the gap
-    shared_lo = min(lo["utility_used_share"], lo["economy_used_share"])
-    shared_hi = max(hi["utility_used_share"], hi["economy_used_share"])
-    for c in ("utility_used_share", "economy_used_share"):
-        lo[c], hi[c] = shared_lo, shared_hi
+    if absolute:
+        lo = {c: 0.0 for c, _ in axes}
+        hi = {"utility_used_share": 1.0, "economy_used_share": 1.0,
+              "ratio": d["ratio"].max(),
+              "utility_info_tasks": d["utility_info_tasks"].max()}
+    else:
+        lo = {c: d[c].min() for c, _ in axes}
+        hi = {c: d[c].max() for c, _ in axes}
+        # the two share axes use ONE common scale, so the utility->economy
+        # jump is visible; per-axis normalization would hide the gap
+        shared_lo = min(lo["utility_used_share"], lo["economy_used_share"])
+        shared_hi = max(hi["utility_used_share"], hi["economy_used_share"])
+        for c in ("utility_used_share", "economy_used_share"):
+            lo[c], hi[c] = shared_lo, shared_hi
     norm = {c: (d[c] - lo[c]) / (hi[c] - lo[c]) for c, _ in axes}
 
     fig, ax = plt.subplots(figsize=(9.5, 5.5))
@@ -197,11 +208,17 @@ def spec_curve(r: pd.DataFrame) -> None:
               title_fontsize=8.5)
     ax.set_xlim(-0.3, len(axes) - 0.7); ax.set_ylim(-0.02, 1.02)
     ax.axis("off")
-    ax.set_title(f"{len(d)} specifications, one line each: utility usage "
-                 "stays low no matter the measurement choices",
-                 loc="left", fontweight="bold", fontsize=11, y=1.34)
+    title = (f"{len(d)} specifications on absolute scales: AI usage in "
+             "information tasks is a small phenomenon everywhere — "
+             "and smallest in utilities"
+             if absolute else
+             f"{len(d)} specifications, one line each: utility usage "
+             "stays low no matter the measurement choices")
+    ax.set_title(title, loc="left", fontweight="bold", fontsize=11, y=1.34)
     fig.tight_layout()
-    out = Path(__file__).resolve().parents[1] / "figures" / "robustness_parallel.png"
+    name = ("robustness_parallel_absolute.png" if absolute
+            else "robustness_parallel.png")
+    out = Path(__file__).resolve().parents[1] / "figures" / name
     fig.savefig(out, bbox_inches="tight", dpi=150, facecolor=SURFACE)
     plt.close(fig)
     print(f"wrote {out.name}")
