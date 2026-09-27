@@ -1,0 +1,12 @@
+soc,title,subsector,rationale
+51-8011,Nuclear Power Reactor Operators,energy,SOC Plant and System Operators minor group (51-80)
+51-8012,Power Distributors and Dispatchers,energy,SOC 51-80; grid control room operations
+51-8013,Power Plant Operators,energy,SOC 51-80
+51-8092,Gas Plant Operators,energy,SOC 51-80
+51-8031,Water and Wastewater Treatment Plant and System Operators,water,SOC 51-80; ~95k of ~117k employed by local government (OEWS 999300)
+49-9051,Electrical Power-Line Installers and Repairers,energy,Utility-specific trade; transmission and distribution
+49-2095,"Electrical and Electronics Repairers, Powerhouse, Substation, and Relay",energy,Utility-specific trade; substation maintenance
+53-7071,Gas Compressor and Gas Pumping Station Operators,energy,Pipeline/gas system operations
+43-5041,"Meter Readers, Utilities",both,Utility-specific by SOC title
+19-4051,Nuclear Technicians,energy,Reactor support operations
+49-9081,Wind Turbine Service Technicians,energy,Generation maintenance

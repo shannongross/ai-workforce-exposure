@@ -1,6 +1,17 @@
 """Build the occupation-level analysis dataset.
 
-Step 1 (this file, so far): reproduce Anthropic's observed-exposure baseline.
+Step 1: reproduce Anthropic's observed-exposure baseline (validation only;
+the published job_exposure.csv is the analysis baseline — see below).
+
+Step 2: flag utility-infrastructure occupations (energy + water) from BLS
+OEWS industry staffing patterns, following the approach of Kane & Tomer
+(Brookings, 2018) for the water workforce: an occupation belongs to the
+utility workforce according to how concentrated its employment is in
+utility industries (data/reference/utility_naics.csv). The concentration
+threshold is a robustness parameter, not a fixed truth; defaults below.
+
+Step 3: merge exposure + utility flags + OEWS wage/employment into
+data/processed/analysis.csv, logging attrition at each step.
 
 Massenkoff & McCrory (2026, appendix) define task exposure r~_t = covered_t
 * beta_t * alpha_t and job exposure as the time-fraction-weighted sum of r~_t
@@ -14,13 +25,23 @@ Spearman rank correlation. Target from OUTLINE: rho > 0.95.
 Run from the repo root: python src/build_dataset.py
 """
 
+import zipfile
 from pathlib import Path
 
 import pandas as pd
 from scipy.stats import spearmanr
 
 RAW = Path(__file__).resolve().parents[1] / "data" / "raw"
+REFERENCE = Path(__file__).resolve().parents[1] / "data" / "reference"
 PROCESSED = Path(__file__).resolve().parents[1] / "data" / "processed"
+
+# "Utility-core" occupations are an explicit SOC list
+# (data/reference/utility_core_occupations.csv): industry concentration
+# cannot identify them because OEWS files government-owned utilities under
+# pseudo-industry 999xxx, hiding e.g. ~95k municipal water operators from
+# NAICS 2213. The broader "utility workforce" (Brookings-style) still uses
+# private-industry staffing shares; its threshold is a robustness parameter.
+WORKFORCE_SHARE = 0.05
 
 # Frequency-category midpoints, times per year, for the O*NET FT scale
 # (1 = yearly or less ... 7 = hourly or more). Used to approximate the
@@ -97,6 +118,71 @@ def job_exposure(df: pd.DataFrame, weight: str | None) -> pd.DataFrame:
     return per_onet.groupby("soc", as_index=False)["exposure"].mean()
 
 
+def read_oews(zip_name: str, xlsx: str, cols: list[str]) -> pd.DataFrame:
+    with zipfile.ZipFile(RAW / "oews" / zip_name) as z:
+        with z.open(xlsx) as f:
+            df = pd.read_excel(f, usecols=cols)
+    for c in df.columns:
+        if c not in ("OCC_CODE", "OCC_TITLE", "NAICS", "O_GROUP"):
+            df[c] = pd.to_numeric(df[c], errors="coerce")  # '*'/'**' = suppressed
+    return df
+
+
+def utility_flags() -> pd.DataFrame:
+    """Employment share of each occupation in utility industries, split by
+    energy vs. water subsector."""
+    util = pd.read_csv(REFERENCE / "utility_naics.csv", dtype={"naics4": str})
+
+    ind = read_oews("oesm25in4.zip", "oesm25in4/nat4d_M2025_dl.xlsx",
+                    ["NAICS", "OCC_CODE", "O_GROUP", "TOT_EMP"])
+    ind = ind[ind["O_GROUP"] == "detailed"]
+    ind["naics4"] = ind["NAICS"].astype(str).str[:4]
+    ind = ind.merge(util, on="naics4")
+
+    nat = read_oews("oesm25nat.zip", "oesm25nat/national_M2025_dl.xlsx",
+                    ["OCC_CODE", "O_GROUP", "TOT_EMP", "A_MEDIAN"])
+    nat = nat[nat["O_GROUP"] == "detailed"].rename(
+        columns={"TOT_EMP": "emp_national", "A_MEDIAN": "median_wage"})
+
+    by_sub = (ind.pivot_table(index="OCC_CODE", columns="subsector",
+                              values="TOT_EMP", aggfunc="sum", fill_value=0)
+              .rename(columns={"energy": "emp_energy", "water": "emp_water"})
+              .reset_index())
+    flags = nat.merge(by_sub, on="OCC_CODE", how="left")
+    for c in ["emp_energy", "emp_water"]:
+        flags[c] = flags[c].fillna(0)
+    flags["utility_share"] = ((flags["emp_energy"] + flags["emp_water"])
+                              / flags["emp_national"])
+
+    core = pd.read_csv(REFERENCE / "utility_core_occupations.csv")
+    flags["utility_core"] = flags["OCC_CODE"].isin(core["soc"])
+    flags["utility_workforce"] = (flags["utility_core"]
+                                  | (flags["utility_share"] >= WORKFORCE_SHARE))
+    missing = set(core["soc"]) - set(flags["OCC_CODE"])
+    if missing:
+        print(f"  WARNING: core occupations not found in OEWS: {missing}")
+    print(f"utility flags: {flags['utility_core'].sum()} core occupations "
+          f"(explicit SOC list), {flags['utility_workforce'].sum()} workforce "
+          f"(core or private-industry share >= {WORKFORCE_SHARE}), "
+          f"of {len(flags)} with OEWS data")
+    return flags.drop(columns="O_GROUP")
+
+
+def assemble() -> None:
+    exp = pd.read_csv(RAW / "economic_index/labor_market_impacts/job_exposure.csv")
+    flags = utility_flags()
+    df = exp.rename(columns={"occ_code": "OCC_CODE"}).merge(
+        flags, on="OCC_CODE", how="left")
+    df["major_group"] = df["OCC_CODE"].str[:2]
+    no_oews = df["emp_national"].isna().sum()
+    print(f"analysis dataset: {len(exp)} occupations with exposure, "
+          f"{no_oews} lack OEWS employment (kept, flagged NaN)")
+    print(f"  exposed utility-core occupations: "
+          f"{df.loc[df['utility_core'] == True, 'OCC_CODE'].nunique()}")
+    df.to_csv(PROCESSED / "analysis.csv", index=False)
+    print(f"wrote data/processed/analysis.csv")
+
+
 def main() -> None:
     df = add_weights(load_tasks())
 
@@ -121,6 +207,8 @@ def main() -> None:
     out = merged.rename(columns={"exposure": f"exposure_{best}"})
     out.to_csv(PROCESSED / "exposure_baseline.csv", index=False)
     print(f"wrote data/processed/exposure_baseline.csv ({len(out)} occupations)")
+
+    assemble()
 
 
 if __name__ == "__main__":
