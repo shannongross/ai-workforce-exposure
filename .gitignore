@@ -2,6 +2,7 @@
 OUTLINE.md
 SCAFFOLD.md
 notes/
+*.docx
 
 # data is fetched by src/download.py, not committed
 data/raw/

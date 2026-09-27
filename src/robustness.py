@@ -25,12 +25,17 @@ PRESENCE_GWAS = {"4.A.1.a.2", "4.A.1.b.1", "4.A.1.b.2"}
 # Interpersonal GWAs (4.A.4.*): communication, training, coordinating
 INTERPERSONAL_PREFIX = "4.A.4"
 
+# Featured levers (definitional, shown in the paper): rule, presence,
+# core_set. Mechanical levers (unmatched, weighting) stay in the ensemble
+# to demonstrate they are inert; usage is binary (any observed usage),
+# since no analysis uses the penetration magnitude. SOC 51-80xx industrial
+# cousins (chemical/refinery operators) are NOT a utility definition; they
+# serve as the occupational-twins comparison instead.
 PARAMS = {
     "rule": ["any_physical", "majority_physical", "strict_information"],
     "presence_is_physical": [False, True],
-    "usage_threshold": [0.0, 0.5, 0.8],
     "unmatched": ["zero", "drop"],
-    "core_set": ["core11", "plant_operators", "extended"],
+    "core_set": ["core11", "extended"],
     "weighting": ["equal", "importance"],
 }
 
@@ -67,7 +72,6 @@ def occupation_sets() -> dict[str, set]:
     ana = pd.read_csv(PROCESSED / "analysis.csv")
     return {
         "core11": core,
-        "plant_operators": {s for s in ana["OCC_CODE"] if s.startswith("51-80")},
         "extended": set(ana.loc[ana["utility_workforce"] == True, "OCC_CODE"]),
     }
 
@@ -97,7 +101,7 @@ def evaluate(tasks: pd.DataFrame, occ_sets: dict, spec: dict) -> dict:
     if spec["unmatched"] == "drop":
         t = t[t["matched"]]
     t = t[t["cls"] == "information"]
-    t["used"] = t["penetration"] > spec["usage_threshold"]
+    t["used"] = t["penetration"] > 0  # binary: any observed usage
     t["w"] = 1.0 if spec["weighting"] == "equal" else t["importance"]
 
     in_core = t["soc"].isin(occ_sets[spec["core_set"]])
@@ -172,7 +176,7 @@ def spec_curve(r: pd.DataFrame) -> None:
 
     fig, ax = plt.subplots(figsize=(9.5, 5.5))
     fig.patch.set_facecolor(SURFACE); ax.set_facecolor(SURFACE)
-    colors = {"core11": ORANGE, "plant_operators": AQUA, "extended": BLUE}
+    colors = {"core11": ORANGE, "extended": BLUE}
     for i in d.index:
         ax.plot(range(len(axes)), [norm[c][i] for c, _ in axes],
                 color=colors[d.loc[i, "core_set"]], alpha=0.25, linewidth=1)
@@ -185,16 +189,16 @@ def spec_curve(r: pd.DataFrame) -> None:
                 fontsize=8.5, color=MUTED)
         ax.text(x, -0.16, label, ha="center", va="top", fontsize=9, color=INK)
     handles = [plt.Line2D([], [], color=c, linewidth=2) for c in colors.values()]
-    ax.legend(handles, ["core 11 occupations", "plant & system operators (51-80xx)",
-                        "extended workforce"],
+    ax.legend(handles, ["core utility occupations (11)",
+                        "extended utility workforce (21)"],
               frameon=False, fontsize=8.5, loc="upper center",
-              bbox_to_anchor=(0.5, 1.28), ncol=3,
+              bbox_to_anchor=(0.5, 1.28), ncol=2,
               title="utility workforce definition (lever L1)",
               title_fontsize=8.5)
     ax.set_xlim(-0.3, len(axes) - 0.7); ax.set_ylim(-0.02, 1.02)
     ax.axis("off")
-    ax.set_title("216 specifications, one line each: utility usage stays low "
-                 "no matter the measurement choices",
+    ax.set_title(f"{len(d)} specifications, one line each: utility usage "
+                 "stays low no matter the measurement choices",
                  loc="left", fontweight="bold", fontsize=11, y=1.34)
     fig.tight_layout()
     out = Path(__file__).resolve().parents[1] / "figures" / "robustness_parallel.png"
