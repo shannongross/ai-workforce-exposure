@@ -14,10 +14,14 @@ The paper is in [paper/](paper/). <!-- TODO: link the PDF/blog post when done --
 ```
 pip install -r requirements.txt
 python src/download.py        # fetch raw data into data/raw/ (~380 MB)
+python src/eda.py             # exploratory figures -> figures/eda/, docs/index.html
 python src/build_dataset.py   # exposure baseline + CI flag + joins
 python src/analysis.py        # descriptives and regression -> figures/, tables
 python src/robustness.py      # specification ensemble -> figures/
 ```
+
+An interactive view of the data is published via GitHub Pages from
+[docs/](docs/). <!-- TODO: add the live URL after enabling Pages -->
 
 BLS blocks scripted downloads, so `download.py` will ask you to fetch the two
 OEWS zip files once in a browser; it prints the URLs and destination paths.
