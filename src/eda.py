@@ -311,6 +311,46 @@ def utility_page_section(ana: pd.DataFrame) -> str:
     return sec.to_html(full_html=False, include_plotlyjs=False)
 
 
+def fig_core_task_breakdown():
+    """Every task of every core utility occupation, as one square per task:
+    orange = saw any observed usage, gray = zero. Shows that AI has touched
+    utility work only at the recordkeeping margin."""
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from build_dataset import load_tasks
+
+    tasks = load_tasks()
+    core = pd.read_csv(ROOT / "data/reference/utility_core_occupations.csv")
+    d = (tasks[tasks["soc"].isin(core["soc"])]
+         .drop_duplicates(["soc", "task_key"])
+         .merge(core[["soc", "title"]], on="soc"))
+    order = (d.groupby("title")
+             .agg(n=("task_key", "size"), nz=("penetration", lambda s: (s > 0).sum()))
+             .sort_values(["nz", "n"], ascending=False))
+
+    fig, ax = plt.subplots(figsize=(10.5, 5.5))
+    for row, (title, meta) in enumerate(order.iterrows()):
+        occ = d[d["title"] == title].sort_values("penetration", ascending=False)
+        for i, pen in enumerate(occ["penetration"]):
+            color = ORANGE if pen > 0 else "#c3c2b7"
+            ax.add_patch(plt.Rectangle((i + 0.15, -row), 0.7, 0.8,
+                                       color=color, linewidth=0))
+        label = shorten(pd.Series([title]), 44)[0]
+        ax.text(-1, -row + 0.4, f"{label}  ({meta['nz']}/{meta['n']})",
+                ha="right", va="center", fontsize=9, color=INK)
+    ax.set_xlim(-0.5, order["n"].max() + 1)
+    ax.set_ylim(-len(order) + 0.2, 1.6)
+    ax.axis("off")
+    ax.set_title("One square per O*NET task: which utility tasks show any "
+                 "observed AI usage?\n3 of 254 tasks — all of them "
+                 "recordkeeping (“record and compile operational data, "
+                 "forms, logs, reports”)",
+                 loc="left", fontweight="bold", fontsize=11)
+    fig.tight_layout()
+    fig.savefig(FIGS / "core_task_breakdown.png", bbox_inches="tight")
+    plt.close(fig)
+
+
 def build_page(exp, aa, wage, repro, n_gated, n_tasks, ana):
     """One self-contained interactive page for GitHub Pages. Embeds only
     occupation-level aggregates, never the raw task file."""
@@ -438,6 +478,7 @@ def main() -> None:
     fig_utility_core(ana)
     fig_utility_vs_economy(ana)
     fig_utility_scatter(ana)
+    fig_core_task_breakdown()
 
     build_page(exp, aa, wage, repro, n_gated, n_tasks, ana)
     print(f"wrote {len(list(FIGS.glob('*.png')))} figures to figures/eda/")
