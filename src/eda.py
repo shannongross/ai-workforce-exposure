@@ -312,39 +312,48 @@ def utility_page_section(ana: pd.DataFrame) -> str:
 
 
 def fig_core_task_breakdown():
-    """Every task of every core utility occupation, as one square per task:
-    orange = saw any observed usage, gray = zero. Shows that AI has touched
-    utility work only at the recordkeeping margin."""
-    import sys
-    sys.path.insert(0, str(ROOT / "src"))
-    from build_dataset import load_tasks
+    """Every classified task of every core utility occupation, one square
+    per task: blue = information-based, gray = physical, orange = saw any
+    observed usage. The AI-feasible margin is half the work — and almost
+    none of it shows usage."""
+    d = pd.read_csv(ROOT / "data/processed/core_task_classes.csv")
+    n_info = (d["task_class"] == "information").sum()
+    n_info_used = ((d["task_class"] == "information") & d["used"]).sum()
 
-    tasks = load_tasks()
-    core = pd.read_csv(ROOT / "data/reference/utility_core_occupations.csv")
-    d = (tasks[tasks["soc"].isin(core["soc"])]
-         .drop_duplicates(["soc", "task_key"])
-         .merge(core[["soc", "title"]], on="soc"))
     order = (d.groupby("title")
-             .agg(n=("task_key", "size"), nz=("penetration", lambda s: (s > 0).sum()))
-             .sort_values(["nz", "n"], ascending=False))
+             .agg(n=("Task", "size"), nz=("used", "sum"),
+                  info=("task_class", lambda s: (s == "information").sum()))
+             .sort_values(["nz", "info"], ascending=False))
 
-    fig, ax = plt.subplots(figsize=(10.5, 5.5))
+    fig, ax = plt.subplots(figsize=(10.5, 6))
+    cls_rank = {"information": 1, "physical": 2}
     for row, (title, meta) in enumerate(order.iterrows()):
-        occ = d[d["title"] == title].sort_values("penetration", ascending=False)
-        for i, pen in enumerate(occ["penetration"]):
-            color = ORANGE if pen > 0 else "#c3c2b7"
+        occ = d[d["title"] == title].copy()
+        occ["rank"] = occ["task_class"].map(cls_rank) - occ["used"]
+        occ = occ.sort_values("rank")
+        for i, r in enumerate(occ.itertuples()):
+            color = (ORANGE if r.used
+                     else BLUE if r.task_class == "information"
+                     else "#c3c2b7")
             ax.add_patch(plt.Rectangle((i + 0.15, -row), 0.7, 0.8,
                                        color=color, linewidth=0))
         label = shorten(pd.Series([title]), 44)[0]
-        ax.text(-1, -row + 0.4, f"{label}  ({meta['nz']}/{meta['n']})",
+        ax.text(-1, -row + 0.4,
+                f"{label}  ({meta['info']} info / {meta['n']})",
                 ha="right", va="center", fontsize=9, color=INK)
+    handles = [plt.Rectangle((0, 0), 1, 1, color=c) for c in
+               (ORANGE, BLUE, "#c3c2b7")]
+    ax.legend(handles,
+              ["saw observed AI usage", "information-based, no usage",
+               "physical, no usage"],
+              frameon=False, loc="lower right", fontsize=9)
     ax.set_xlim(-0.5, order["n"].max() + 1)
     ax.set_ylim(-len(order) + 0.2, 1.6)
     ax.axis("off")
-    ax.set_title("One square per O*NET task: which utility tasks show any "
-                 "observed AI usage?\n3 of 254 tasks — all of them "
-                 "recordkeeping (“record and compile operational data, "
-                 "forms, logs, reports”)",
+    ax.set_title("One square per O*NET task of the core utility occupations\n"
+                 f"{n_info} of {len(d)} tasks are information-based (AI's "
+                 f"feasible margin) — {n_info_used} of those {n_info} show "
+                 "any observed usage",
                  loc="left", fontweight="bold", fontsize=11)
     fig.tight_layout()
     fig.savefig(FIGS / "core_task_breakdown.png", bbox_inches="tight")

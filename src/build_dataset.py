@@ -118,6 +118,47 @@ def job_exposure(df: pd.DataFrame, weight: str | None) -> pd.DataFrame:
     return per_onet.groupby("soc", as_index=False)["exposure"].mean()
 
 
+# GWAs that require physical presence or manual work: performing physical
+# activities, handling objects, controlling machines, operating vehicles,
+# repairing mechanical/electronic equipment. A task with any of these is
+# "physical"; tasks whose activities are all informational/cognitive/
+# interpersonal are "information" (the AI-feasible margin).
+PHYSICAL_GWAS = {"4.A.3.a.1", "4.A.3.a.2", "4.A.3.a.3", "4.A.3.a.4",
+                 "4.A.3.b.4", "4.A.3.b.5"}
+
+
+def classify_core_tasks() -> None:
+    """Classify every core-utility task as information vs physical via the
+    O*NET task -> DWA -> generalized-work-activity hierarchy, and record
+    which tasks saw any observed AI usage."""
+    td = pd.read_csv(RAW / "onet/tasks_to_dwas.csv")
+    td["gwa"] = td["DWA Element ID"].str.extract(r"^(4\.A\.\d\.[a-z]\.\d+)")
+    task_gwas = td.groupby(["O*NET-SOC Code", "Task ID"])["gwa"].agg(set)
+
+    core = pd.read_csv(REFERENCE / "utility_core_occupations.csv")
+    tasks = load_tasks()
+    d = (tasks[tasks["soc"].isin(core["soc"])]
+         .drop_duplicates(["soc", "Task ID"])
+         .merge(task_gwas.rename("gwas"),
+                left_on=["O*NET-SOC Code", "Task ID"],
+                right_index=True, how="left"))
+    n_unlinked = d["gwas"].isna().sum()
+    d = d.dropna(subset=["gwas"]).copy()
+    d["task_class"] = d["gwas"].apply(
+        lambda s: "physical" if s & PHYSICAL_GWAS else "information")
+    d["used"] = d["penetration"] > 0
+
+    out = (d.merge(core[["soc", "title"]], on="soc")
+           [["soc", "title", "Task ID", "Task", "task_class",
+             "penetration", "used"]])
+    out.to_csv(PROCESSED / "core_task_classes.csv", index=False)
+    info = out[out["task_class"] == "information"]
+    print(f"core task classes: {len(out)} tasks classified "
+          f"({n_unlinked} lacked DWA links); "
+          f"{len(info)} information-based, of which {info['used'].sum()} "
+          f"saw any usage")
+
+
 def read_oews(zip_name: str, xlsx: str, cols: list[str]) -> pd.DataFrame:
     with zipfile.ZipFile(RAW / "oews" / zip_name) as z:
         with z.open(xlsx) as f:
@@ -209,6 +250,7 @@ def main() -> None:
     print(f"wrote data/processed/exposure_baseline.csv ({len(out)} occupations)")
 
     assemble()
+    classify_core_tasks()
 
 
 if __name__ == "__main__":
