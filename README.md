@@ -1,56 +1,58 @@
-# How Exposed Is Critical Infrastructure to AI?
+# AI task exposure and working time in community service occupations
 
-An empirical look at observed AI usage in critical-infrastructure occupations,
-using the [Anthropic Economic Index](https://huggingface.co/datasets/Anthropic/EconomicIndex),
-O*NET, and BLS OEWS data. The study asks how much critical-infrastructure
-occupations actually use AI relative to the broader economy, whether that usage
-is automation- or augmentation-shaped, and how robust those conclusions are to
-the measurement choices behind them.
+Code for the working paper *Can AI Give Time Back? Task Exposure and Working
+Time in Local Community Service Occupations* (Shannon Gross, October 2026).
 
-The paper is in [paper/](paper/). <!-- TODO: link the PDF/blog post when done -->
+The analysis combines three published task-level measures (theoretical AI
+exposure, time spent per task, and observed AI use) for the three largest
+occupations in NAICS 6242, Community Food and Housing, and Emergency and Other
+Relief Services:
 
-## Reproducing the analysis
+- Social and Human Service Assistants (SOC 21-1093)
+- Child, Family, and School Social Workers (SOC 21-1021)
+- Social and Community Service Managers (SOC 11-9151)
+
+## Data
+
+All data are public and are downloaded, not stored in this repository.
+
+| Source | Used for |
+|---|---|
+| BLS Occupational Employment and Wage Statistics, May 2025 | Employment by occupation |
+| O*NET 31.0 | Task statements |
+| Eloundou et al. (2024), "GPTs are GPTs" | Exposure rating for each task |
+| Hatgis-Kessell et al. (2026), "Estimating Time Spent on Work Tasks" | Hours per day for each task |
+| Anthropic Economic Index | Observed AI use for each task |
+| National Center for Charitable Statistics | NTEE to NAICS crosswalk |
+
+## Run
 
 ```
 pip install -r requirements.txt
-python src/download.py        # fetch raw data into data/raw/ (~380 MB)
-python src/eda.py             # exploratory figures -> figures/eda/, docs/index.html
-python src/build_dataset.py   # exposure baseline + CI flag + joins
-python src/analysis.py        # descriptives and regression -> figures/, tables
-python src/robustness.py      # specification ensemble -> figures/
+python src/download.py
 ```
 
-An interactive view of the data is published via GitHub Pages from
-[docs/](docs/). <!-- TODO: add the live URL after enabling Pages -->
+`src/download.py` saves the data to `data/raw/`. Two steps are manual, because
+BLS blocks scripted downloads:
 
-BLS blocks scripted downloads, so `download.py` will ask you to fetch the two
-OEWS zip files once in a browser; it prints the URLs and destination paths.
+1. If the script lists a BLS file it could not fetch, download it in a browser
+   and save it to the path the script prints.
+2. Download the May 2025 national industry-specific file (`oesm25in4.zip`) from
+   https://www.bls.gov/oes/tables.htm and unzip it to `data/raw/oews/oesm25in4/`.
+   The script does not fetch this file.
 
-Each step prints how many occupations enter and leave, and why. The robustness
-ensemble uses a fixed random seed; the Economic Index dataset is pinned to a
-specific revision in `src/download.py`.
+Then run the notebooks:
 
-## Data sources and licenses
+| Notebook | Produces |
+|---|---|
+| `subq1.ipynb` | Working time by task and exposure category for each occupation (Figures 1 to 3) |
+| `subq2.ipynb` | Task counts versus time (Figure 4) |
+| `eda.ipynb` | Exploratory analysis, not used in the paper |
 
-| Source | Used for | License |
-|---|---|---|
-| [Anthropic Economic Index](https://huggingface.co/datasets/Anthropic/EconomicIndex) | Observed exposure, task penetration, automation/augmentation shares | CC-BY |
-| [O*NET 31.0](https://www.onetcenter.org/database.html) | Task statements, importance weights, work context | CC-BY 4.0 |
-| [BLS OEWS, May 2025](https://www.bls.gov/oes/) | Wage/employment levels; industry staffing patterns | Public domain |
-| [CISA critical infrastructure sectors](https://www.cisa.gov/topics/critical-infrastructure-security-and-resilience/critical-infrastructure-sectors) | Sector definitions | Public domain |
+## Contents
 
-The CISA-sector-to-NAICS mapping is hand-built and committed at
-[data/reference/cisa_sectors_naics.csv](data/reference/cisa_sectors_naics.csv),
-with a rationale column documenting each judgment call. The broad/narrow split
-there is one of the parameters varied in the robustness section.
-
-## AI assistance
-
-<!-- TODO(Shannon): rewrite in your own words before publishing. -->
-AI tools (Claude) assisted with data-download boilerplate and debugging.
-All research design choices, the CISA sector mapping, the interpretation of
-results, and the text of the paper are my own.
-
-## Author
-
-Shannon Gross
+- `src/download.py`: data download
+- `src/` (other scripts): exploratory analysis from an earlier, broader version of the study
+- `subq1.ipynb`, `subq2.ipynb`: analysis and figures for the paper
+- `figures/`: figure output
+- `paper/`: LaTeX source for the paper

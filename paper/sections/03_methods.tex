@@ -1,0 +1,75 @@
+\section{Methods}
+
+\subsection{Scope and Unit of Analysis}
+
+The population of interest in this study are organizations that provide material assistance (food, shelter, and emergency relief) to local community members. I identify these organizations using the National Taxonomy of Exempt Entities (NTEE), the classification system for US nonprofits, selecting the codes for food programs and food banks (K30 to K36), homeless and family violence shelters (L41, P43), and emergency assistance (P60). Table 1 lists the codes and their corresponding industries under the crosswalk to the North American Industry Classification System (NAICS) maintained by the National Center for Charitable Statistics.
+
+\begin{table}[!htbp]
+\tablesize
+\caption*{\textbf{Table 1.} NTEE codes and corresponding NAICS industries.}
+\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\toprule
+NTEE code & Organization type & NAICS code & NAICS industry \\
+\midrule
+K30 & Food Programs & 624210 & Community Food Services \\
+K31 & Food Banks, Pantries & 624210 & Community Food Services \\
+K34 & Congregate Meals & 624210 & Community Food Services \\
+K35 & Soup Kitchens & 624210 & Community Food Services \\
+K36 & Meals on Wheels & 624210 & Community Food Services \\
+L41 & Homeless Shelters & 624221 & Temporary Shelters \\
+P43 & Family Violence Shelters & 624221 & Temporary Shelters \\
+P60 & Emergency Assistance & 624230 & Emergency and Other Relief Services \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+These organizations all fall in the Bureau of Labor Statistics (BLS) 4-digit industry group NAICS 624200: Community Food and Housing, and Emergency and Other Relief Services. This sector comprises 193 occupations and 231,040 jobs. For purposes of the deep dive of this study, I examine the three largest occupations by employment within this sector, which are: Social and Human Service Assistants (SOC 21-1093), Child, Family, and School Social Workers (SOC 21-1021), and Social and Community Service Managers (SOC 11-9151). Together they account for 27.6 percent of jobs within NAICS 624200. For each job, the Occupational Information Network (O*NET) provides a breakdown of the tasks that are included in each job description.
+
+\begin{table}[!htbp]
+\tablesize
+\caption*{\textbf{Table 2.} Employment in the three occupations examined.}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}X r >{\raggedleft\arraybackslash}p{2.7cm} >{\raggedleft\arraybackslash}p{1.3cm}@{}}
+\toprule
+SOC code & Occupation & Jobs & Share of NAICS 624200 jobs (\%) & O*NET tasks \\
+\midrule
+21-1093 & Social and Human Service Assistants & 36,250 & 15.7 & 19 \\
+21-1021 & Child, Family, and School Social Workers & 13,940 & 6.0 & 21 \\
+11-9151 & Social and Community Service Managers & 13,680 & 5.9 & 16 \\
+& Total, three occupations & 63,870 & 27.6 & 56 \\
+& Total, NAICS 624200 (193 occupations) & 231,040 & 100.0 & \\
+\bottomrule
+\end{tabularx}
+\tablenote{\emph{Note:} SOC = Standard Occupational Classification.}
+\end{table}
+
+\subsection{Source of Data}
+
+This study combines the following publicly available sources:
+
+\begin{itemize}
+\item
+  \emph{Occupational employment.} Employment by occupation in NAICS 624200 comes from the May 2025 employment statistics from U.S. Bureau of Labor Statistics. I use these data to identify the three largest occupations in the sector.
+\item
+  \emph{Task descriptions.} Each occupation's tasks come from the O*NET 31.0 database, which lists 19 tasks for Social and Human Service Assistants, 21 for Child, Family, and School Social Workers, and 16 for Social and Community Service Managers.
+\item
+  \emph{Theoretical exposure.} Task-level exposure ratings come from Eloundou et al. (2024). A task is rated E1 if an LLM could cut the task completion time by half (directly exposed), E2 if the LLM could do it if additional software were built on the model (partially exposed), and E0 if the LLM could not do the task (not exposed). The data from this study include two ratings of every task, one by human annotators and one by GPT-4. I use the human scores as the reported measure throughout this study. I check the final results against the GPT-4 scores for robustness.
+\item
+  \emph{Time per task}. Estimated hours per task come from Hatgis-Kessell et al. (2026), across each occupation's O*NET tasks. I use the task-level results made publicly available by the authors.
+\item
+  \emph{Observed use.} Observed exposure data comes from Massenkoff and McCrory (2026), who measure work-related use of Claude per O*NET task. I use both their task-level results, published in the Anthropic Economic Index dataset via Hugging Face.
+\end{itemize}
+
+\subsection{Procedure}
+
+I combined these data sources using SOC codes and O*NET task identifiers, so that every task in the three occupations included in this study carries an exposure rating, an estimate of daily hours, and a measure of observed use.
+
+\begin{itemize}
+\item
+  Exposed time per worker. Per each of the tasks included in the three occupations of this study, I extracted the theoretical exposure metrics from Eloundou et al. (2024): directly exposed (E1), partially exposed (E2), and not exposed (E0).
+\item
+  Task-weighting vs time-weighting. I incorporated time-weighting as defined in Hatgis-Kessell et al. (2026) in order to compare E1, E2, and E0 against task counts per occupation.
+\item
+  Observed exposure. To gain more context around AI exposure, I also extracted observed AI usage per occupational task from Massenkoff and McCrory (2026).
+\item
+  Worker hours. For each occupation, I multiplied hours by the size of the workforce to obtain exposure in terms of worker hours per day. Note that E1 (direct exposure) and E2 (partial exposure) do not show the time that AI would save, they indicate the theoretical ability of the LLM to shorten the task by half. I do not report worker time savings due to partial exposure, since these savings depend on the creation of software that does not exist yet.
+\end{itemize}

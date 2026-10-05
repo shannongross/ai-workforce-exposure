@@ -1,0 +1,44 @@
+% ---------------------------------------------------------------------------
+% Main file. Compile with:  bash build.sh   (or: latexmk -pdf main.tex)
+% The text of each section lives in sections/*.tex and was converted from
+% research_paper_draft1.docx without any change to the wording.
+% ---------------------------------------------------------------------------
+\documentclass[10pt]{article}
+\input{preamble}
+
+% ---- Settings you can change ------------------------------------------------
+\anonymousfalse         % \anonymoustrue = no author block; \anonymousfalse = show author
+\submissionfalse        % \submissiontrue = double spacing + line numbers for review
+\newcommand{\paperauthor}{Shannon Gross}
+\newcommand{\paperaffiliation}{Independent Researcher}
+\newcommand{\paperemail}{}        % optional; leave empty to hide
+\newcommand{\paperdate}{Working paper, October 2026}
+\newcommand{\papercode}{github.com/shannongross/ai-workforce-exposure}   % leave empty to hide
+% Target journal noted in the draft (not printed):
+%   nonprofit Policy Forum (NPF), published by De Gruyter Brill,
+% -----------------------------------------------------------------------------
+
+\newcommand{\papertitle}{Can AI Give Time Back? Task Exposure and Working Time\\ in Local Community Service Occupations}
+\newcommand{\paperkeywords}{artificial intelligence; AI exposure; nonprofit workforce; large language models; human services; social workers}
+
+\begin{document}
+\maketitleblock
+
+\begin{paperabstract}
+\input{sections/00_abstract}
+\end{paperabstract}
+\paperkeywordsline
+
+\input{sections/01_introduction}
+\input{sections/02_background}
+\input{sections/03_methods}
+\input{sections/04_results}
+\input{sections/05_discussion}
+\input{sections/06_conclusion}
+\input{sections/06a_data_code}   % not in the Word draft; edit this file directly
+\input{sections/07_disclosure}
+\input{sections/08_references}
+
+% The draft ends with two empty headings, "Figure captions" and "Appendix".
+% They are left out of the PDF until they have content.
+\end{document}
